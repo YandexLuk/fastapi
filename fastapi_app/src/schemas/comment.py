@@ -1,10 +1,9 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from datetime import datetime
 from typing import Optional
-from .user import User  # для вложенного объекта
 
 class CommentBase(BaseModel):
-    text: str
+    text: str = Field(..., max_length=10)
 
 class CommentCreate(CommentBase):
     post_id: int
@@ -15,7 +14,7 @@ class CommentUpdate(BaseModel):
 
 class Comment(CommentBase):
     id: int
-    author: User
+    author_id: int
     post_id: int
     created_at: datetime
 
