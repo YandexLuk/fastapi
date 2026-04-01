@@ -14,5 +14,7 @@ class Comment(Base):
     author_id: Mapped[int] = mapped_column(Integer, ForeignKey("auth_user.id"))
     post_id: Mapped[int] = mapped_column(Integer, ForeignKey("blog_post.id"))
 
+    like: Mapped[bool] = mapped_column(default=False, nullable=False)
+
     def __repr__(self):
         return f"<Comment(id={self.id}, author_id={self.author_id}, post_id={self.post_id})>"

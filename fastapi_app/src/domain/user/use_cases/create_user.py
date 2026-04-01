@@ -4,7 +4,11 @@ from infrastructure.sqlite.database import database
 from infrastructure.sqlite.repositories.user_repository import UserRepository
 from schemas.user import User, UserCreate
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+pwd_context = CryptContext(
+    schemes=["bcrypt"],
+    deprecated="auto",
+    bcrypt__ident="2b"
+)
 
 class CreateUserUseCase:
     def __init__(self):
