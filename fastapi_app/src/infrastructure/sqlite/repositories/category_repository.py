@@ -1,57 +1,82 @@
 from typing import Optional, List
 from datetime import datetime
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
+from slugify import slugify
 from infrastructure.sqlite.models.category import Category
 from schemas.category import CategoryCreate, CategoryUpdate
+from core.exceptions.database_exceptions import (
+    DatabaseError, CategoryNotFoundError, CategoryAlreadyExistsError
+)
 
 class CategoryRepository:
     def __init__(self):
         self.model = Category
 
-    def get_by_id(self, session: Session, category_id: int) -> Optional[Category]:
-        return session.get(self.model, category_id)
+    def get_by_id(self, session: Session, category_id: int) -> Category:
+        try:
+            category = session.get(self.model, category_id)
+            if category is None:
+                raise CategoryNotFoundError(f"Category with id {category_id} not found")
+            return category
+        except SQLAlchemyError as e:
+            raise DatabaseError(f"Database error: {e}")
+
+    def get_by_slug(self, session: Session, slug: str) -> Optional[Category]:
+        try:
+            return session.query(self.model).filter(self.model.slug == slug).first()
+        except SQLAlchemyError as e:
+            raise DatabaseError(f"Database error: {e}")
 
     def get_all(self, session: Session) -> List[Category]:
-        return session.query(self.model).all()
+        try:
+            return session.query(self.model).all()
+        except SQLAlchemyError as e:
+            raise DatabaseError(f"Database error: {e}")
 
     def create(self, session: Session, category_data: CategoryCreate) -> Category:
-        """Создать категорию"""
-        from slugify import slugify
-        slug = slugify(category_data.title)
+        try:
+            slug = slugify(category_data.title)
+            category = self.model(
+                title=category_data.title,
+                description=category_data.description or "",
+                slug=slug,
+                is_published=True,
+                created_at=datetime.now()
+            )
+            session.add(category)
+            session.flush()
+            return category
+        except IntegrityError as e:
+            if "slug" in str(e.orig):
+                raise CategoryAlreadyExistsError("slug", slug)
+            raise DatabaseError(f"Integrity error: {e}")
+        except SQLAlchemyError as e:
+            raise DatabaseError(f"Database error: {e}")
 
-        category = self.model(
-            title=category_data.title,
-            description=category_data.description or "",
-            slug=slug,
-            is_published=True,
-            created_at=datetime.now()
-        )
-        session.add(category)
-        session.flush()
-        return category
-
-    def update(self, session: Session, category_id: int, category_data: CategoryUpdate) -> Optional[Category]:
-        category = self.get_by_id(session, category_id)
-        if not category:
-            return None
-
-        forbidden_fields = {'id', 'slug', 'created_at'}
-        update_data = category_data.model_dump(exclude_unset=True)
-
-        if 'title' in update_data:
-            from slugify import slugify
-            update_data['slug'] = slugify(update_data['title'])
-
-        for field, value in update_data.items():
-            if field not in forbidden_fields and hasattr(category, field):
-                if value is not None:
+    def update(self, session: Session, category_id: int, category_data: CategoryUpdate) -> Category:
+        try:
+            category = self.get_by_id(session, category_id)
+            update_data = category_data.model_dump(exclude_unset=True)
+            if 'title' in update_data:
+                update_data['slug'] = slugify(update_data['title'])
+            forbidden_fields = {'id', 'created_at'}
+            for field, value in update_data.items():
+                if field not in forbidden_fields and value is not None:
                     setattr(category, field, value)
-
-        return category
+            session.flush()
+            return category
+        except IntegrityError as e:
+            if "slug" in str(e.orig):
+                raise CategoryAlreadyExistsError("Category with this slug already exists")
+            raise DatabaseError(f"Integrity error: {e}")
+        except SQLAlchemyError as e:
+            raise DatabaseError(f"Database error: {e}")
 
     def delete(self, session: Session, category_id: int) -> bool:
-        category = self.get_by_id(session, category_id)
-        if category:
+        try:
+            category = self.get_by_id(session, category_id)
             session.delete(category)
             return True
-        return False
+        except SQLAlchemyError as e:
+            raise DatabaseError(f"Database error: {e}")

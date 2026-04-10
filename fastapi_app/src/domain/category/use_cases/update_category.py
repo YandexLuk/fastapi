@@ -1,37 +1,37 @@
-from typing import Optional
-from fastapi import HTTPException, status
+from slugify import slugify
 from infrastructure.sqlite.database import database
 from infrastructure.sqlite.repositories.category_repository import CategoryRepository
-from schemas.category import CategoryUpdate, Category
-
+from schemas.category import Category, CategoryUpdate
+from core.exceptions.database_exceptions import (
+    CategoryNotFoundError as DBCategoryNotFoundError,
+    CategoryAlreadyExistsError as DBCategoryAlreadyExistsError
+)
+from core.exceptions.domain_exceptions import (
+    CategoryNotFoundError,
+    CategoryAlreadyExistsError
+)
 
 class UpdateCategoryUseCase:
     def __init__(self):
         self._database = database
         self._repo = CategoryRepository()
 
-    async def execute(self, category_id: int, category_data: CategoryUpdate) -> Optional[Category]:
+    async def execute(self, category_id: int, category_data: CategoryUpdate) -> Category:
         try:
             with self._database.session() as session:
-                existing = self._repo.get_by_id(session, category_id)
-                if not existing:
-                    raise HTTPException(
-                        status_code=status.HTTP_404_NOT_FOUND,
-                        detail=f"Категория с id {category_id} не найдена"
-                    )
+                try:
+                    existing_category = self._repo.get_by_id(session, category_id)
+                except DBCategoryNotFoundError:
+                    raise CategoryNotFoundError(f"id={category_id}")
 
-                if category_data.slug is not None:
-                    slug_exists = self._repo.get_by_slug(session, category_data.slug)
-                    if slug_exists and slug_exists.id != category_id:
-                        raise HTTPException(
-                            status_code=status.HTTP_400_BAD_REQUEST,
-                            detail=f"Категория со slug '{category_data.slug}' уже существует"
-                        )
+                # Если меняется title, slug изменится автоматически в репозитории при update
+                if category_data.title is not None and category_data.title != existing_category.title:
+                    new_slug = slugify(category_data.title)
+                    same_slug = self._repo.get_by_slug(session, new_slug)
+                    if same_slug and same_slug.id != category_id:
+                        raise CategoryAlreadyExistsError("slug", new_slug)
 
-                updated = self._repo.update(session, category_id, category_data)
-                return Category.model_validate(updated)
-        except HTTPException:
-            raise
-        except Exception as e:
-            print(f"Ошибка при обновлении категории: {e}")
-            raise
+                updated_category = self._repo.update(session, category_id, category_data)
+                return Category.model_validate(updated_category)
+        except DBCategoryAlreadyExistsError as e:
+            raise CategoryAlreadyExistsError("slug", "unknown") from e

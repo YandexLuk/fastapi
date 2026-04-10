@@ -1,29 +1,42 @@
-from typing import Optional
-from fastapi import HTTPException, status
 from infrastructure.sqlite.database import database
 from infrastructure.sqlite.repositories.post_repository import PostRepository
-from schemas.post import PostUpdate, Post
-
+from infrastructure.sqlite.repositories.user_repository import UserRepository
+from schemas.post import Post, PostUpdate
+from core.exceptions.database_exceptions import (
+    PostNotFoundError as DBPostNotFoundError,
+    UserNotFoundError as DBUserNotFoundError,
+    DatabaseError
+)
+from core.exceptions.domain_exceptions import (
+    PostNotFoundError,
+    PostAuthorNotFoundError
+)
 
 class UpdatePostUseCase:
     def __init__(self):
         self._database = database
-        self._repo = PostRepository()
+        self._post_repo = PostRepository()
+        self._user_repo = UserRepository()
 
-    async def execute(self, post_id: int, post_data: PostUpdate) -> Optional[Post]:
+    async def execute(self, post_id: int, post_data: PostUpdate) -> Post:
         try:
             with self._database.session() as session:
-                existing = self._repo.get_by_id(session, post_id)
-                if not existing:
-                    raise HTTPException(
-                        status_code=status.HTTP_404_NOT_FOUND,
-                        detail=f"Пост с id {post_id} не найден"
-                    )
+                # Проверяем существование поста
+                try:
+                    existing_post = self._post_repo.get_by_id(session, post_id)
+                except DBPostNotFoundError:
+                    raise PostNotFoundError(f"id={post_id}")
 
-                updated = self._repo.update(session, post_id, post_data)
-                return Post.model_validate(updated)
-        except HTTPException:
-            raise
-        except Exception as e:
-            print(f"Ошибка при обновлении поста: {e}")
+                # Если передан новый автор, проверяем его существование
+                if post_data.author_id is not None:
+                    try:
+                        self._user_repo.get_by_id(session, post_data.author_id)
+                    except DBUserNotFoundError:
+                        raise PostAuthorNotFoundError(post_data.author_id)
+
+                # Обновляем пост
+                updated_post = self._post_repo.update(session, post_id, post_data)
+                return Post.model_validate(updated_post)
+        except DatabaseError as e:
+            e.detail = f"{e.detail} (operation: update_post, post_id: {post_id})"
             raise

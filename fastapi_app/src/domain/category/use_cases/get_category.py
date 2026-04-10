@@ -1,9 +1,7 @@
 from typing import List
-from fastapi import HTTPException, status
 from infrastructure.sqlite.database import database
 from infrastructure.sqlite.repositories.category_repository import CategoryRepository
 from schemas.category import Category
-
 
 class GetCategoriesUseCase:
     def __init__(self):
@@ -11,10 +9,6 @@ class GetCategoriesUseCase:
         self._repo = CategoryRepository()
 
     async def execute(self) -> List[Category]:
-        try:
-            with self._database.session() as session:
-                categories = self._repo.get_all(session)
-                return [Category.model_validate(c) for c in categories]
-        except Exception as e:
-            print(f"Ошибка при получении категорий: {e}")
-            raise
+        with self._database.session() as session:
+            categories = self._repo.get_all(session)
+            return [Category.model_validate(c) for c in categories]

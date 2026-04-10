@@ -1,7 +1,7 @@
-from fastapi import HTTPException, status
 from infrastructure.sqlite.database import database
 from infrastructure.sqlite.repositories.comment_repository import CommentRepository
-
+from core.exceptions.database_exceptions import CommentNotFoundError as DBCommentNotFoundError
+from core.exceptions.domain_exceptions import CommentNotFoundError
 
 class DeleteCommentUseCase:
     def __init__(self):
@@ -11,17 +11,7 @@ class DeleteCommentUseCase:
     async def execute(self, comment_id: int) -> dict:
         try:
             with self._database.session() as session:
-                existing = self._repo.get_by_id(session, comment_id)
-                if not existing:
-                    raise HTTPException(
-                        status_code=status.HTTP_404_NOT_FOUND,
-                        detail=f"Комментарий с id {comment_id} не найден"
-                    )
-
                 deleted = self._repo.delete(session, comment_id)
                 return {"deleted": deleted}
-        except HTTPException:
-            raise
-        except Exception as e:
-            print(f"Ошибка при удалении комментария: {e}")
-            raise
+        except DBCommentNotFoundError as e:
+            raise CommentNotFoundError(f"id={comment_id}") from e
