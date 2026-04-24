@@ -3,11 +3,12 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 
+from core.config import settings
+
 
 class Database:
     def __init__(self):
-        self._db_url = "sqlite:///../db.sqlite3"
-        self._engine = create_engine(self._db_url)
+        self._engine = create_engine(settings.SQLITE_URL)
 
     @contextmanager
     def session(self):

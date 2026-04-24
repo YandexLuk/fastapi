@@ -27,13 +27,6 @@ class UpdatePostUseCase:
                 except DBPostNotFoundError:
                     raise PostNotFoundError(f"id={post_id}")
 
-                # Если передан новый автор, проверяем его существование
-                if post_data.author_id is not None:
-                    try:
-                        self._user_repo.get_by_id(session, post_data.author_id)
-                    except DBUserNotFoundError:
-                        raise PostAuthorNotFoundError(post_data.author_id)
-
                 # Обновляем пост
                 updated_post = self._post_repo.update(session, post_id, post_data)
                 return Post.model_validate(updated_post)

@@ -1,0 +1,14 @@
+services:
+  app:
+    image: fastapi-app
+    volumes:
+      - ./fastapi_app/src:/app/src
+      - ./sqlite.db:/app/sqlite.db
+    env_file:
+      - .env
+    ports:
+      - '127.0.0.1:8020:8000'
+    build:
+      context: .
+    pull_policy: build
+    entrypoint: sh -c "./src/start.sh"

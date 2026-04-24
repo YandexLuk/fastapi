@@ -48,7 +48,7 @@ class UserRepository:
                 first_name=user_data.get('first_name', ""),
                 last_name=user_data.get('last_name', ""),
                 is_active=user_data.get('is_active', True),
-                is_superuser=False,
+                is_superuser=user_data.get('is_superuser', False),
                 is_staff=False,
                 date_joined=datetime.now(),
                 last_login=None

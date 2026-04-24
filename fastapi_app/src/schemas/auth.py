@@ -13,3 +13,4 @@ class Token(BaseModel):
 
 class TokenData(BaseModel):
     username: str | None = Field(default=None)
+    user_id: int | None = Field(default=None)
